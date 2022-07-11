@@ -1,0 +1,277 @@
+
+Sub InsertAndSizePictures()
+
+    '
+    '    ____                                      _       __     ____                              ______     _     __                                    __
+    '   / __ \____ _      _____  _________  ____  (_)___  / /_   /  _/___ ___  ____ _____ ____     / ____/____(_)___/ /  ____ ____  ____  ___  _________ _/ /_____  _____
+    '  / /_/ / __ \ | /| / / _ \/ ___/ __ \/ __ \/ / __ \/ __/   / // __ `__ \/ __ `/ __ `/ _ \   / / __/ ___/ / __  /  / __ `/ _ \/ __ \/ _ \/ ___/ __ `/ __/ __ \/ ___/
+    ' / ____/ /_/ / |/ |/ /  __/ /  / /_/ / /_/ / / / / / /_   _/ // / / / / / /_/ / /_/ /  __/  / /_/ / /  / / /_/ /  / /_/ /  __/ / / /  __/ /  / /_/ / /_/ /_/ / /
+    '/_/    \____/|__/|__/\___/_/  / .___/\____/_/_/ /_/\__/  /___/_/ /_/ /_/\__,_/\__, /\___/   \____/_/  /_/\__,_/   \__, /\___/_/ /_/\___/_/   \__,_/\__/\____/_/
+    '                             /_/                                             /____/                              /____/
+    '
+
+    
+    ' Parameters
+
+    Const picSize As Double = 2.5               'assuming square pictures.
+    Const iColsSpacing As Double = 0.5          'horizontal spacing
+    Const iRowsSpacing As Double = 1.1          'vertical spacing
+    Const iPicScale As Double = 0.07            'this could be calculated in runtime for each picture, but i need the same scale factor for the entire lot
+    Const sAllowedExt As String = ".svg"        'if a different file extension is encountered the sub will exit
+    Const sLayoutName As String = "Grid Slide"  'use this layout when placing icons
+    Const bAddBorder As Boolean = True          'wether to add a border (rectangle) around each icon --- you could run the macro once and copy the rectangles in a slide template to save space
+    Const bAddLabel As Boolean = True           'wether to add a label (textbox with file name - ext) under each icon
+
+
+    
+    '===========================================================================================================
+    
+    
+    
+    ' Internal constants
+    Const Cm2Pt As Double = 28.34646                 'vba uses points instead of cm, so this is needed to convert from cm to pt and back --- there is a native function for this in VBA, but not for powerpoint :/
+    
+    ' internal vars
+    Dim oFSO As Object
+    Dim sFolder As String
+    Dim oFolder As Object
+    Dim sFile As String
+    Dim oFile As Object
+    Dim i As Integer
+    Dim oPicture As Shape
+    Dim oBorder As Shape
+    Dim oLabel As Shape
+    Dim oSl As Slide
+    Dim iCols As Integer
+    Dim iRows As Integer
+    Dim iCol As Integer
+    Dim iRow As Integer
+    Dim maxPicturesPerSlide As Integer
+    Dim xspacing As Double
+    Dim yspacing As Double
+    Dim width As Double
+    Dim height As Double
+    Dim x As Double
+    Dim y As Double
+    Dim pptLayout As CustomLayout
+    Dim pptLayoutIdx As Integer
+    Dim s As Integer
+
+
+    'SET UP...
+
+    'show the selection panel (to double-check check what's been added)
+    If Not CommandBars.GetPressedMso("SelectionPane") Then CommandBars.ExecuteMso ("SelectionPane")
+    
+    'if there are already slides present, keep them and append new ones
+    s = ActivePresentation.Slides.Count
+    
+    'set grid layout for new slides
+    pptLayoutIdx = getLayoutIndexByName(sLayoutName) 'look for a template with specific name, set in variables at the beginning of the file
+    If (pptLayoutIdx = 0) Then 'if not found, defaults as the first template available
+        MsgBox ("Slide template '" & sLayoutName & "' not found, will try to use the first one available.")
+        pptLayoutIdx = 1
+    End If
+    Set pptLayout = ActivePresentation.Designs(1).SlideMaster.CustomLayouts(pptLayoutIdx)
+    
+    'calculate the number of colums and rows in the grid that fit the slide, based on the picture size set in configuration
+    iRows = (Application.ActivePresentation.PageSetup.SlideHeight / Cm2Pt - iRowsSpacing) / (picSize + iRowsSpacing * 2)
+    iCols = (Application.ActivePresentation.PageSetup.SlideWidth / Cm2Pt - iColsSpacing) / (picSize + iColsSpacing)
+    maxPicturesPerSlide = iRows * iCols 'max icons per slide
+    
+    'calculate the best spacing for the grid
+    xspacing = (Application.ActivePresentation.PageSetup.SlideWidth / Cm2Pt - picSize * iCols) / (1 + iCols) * Cm2Pt
+    yspacing = iRowsSpacing * Cm2Pt
+    width = picSize * Cm2Pt
+    height = picSize * Cm2Pt
+   
+   
+    'CYCLE ALL FILES IN THE SELECT FOLDER...
+
+    ' Open the select folder prompt
+    With Application.FileDialog(msoFileDialogFolderPicker)
+        If .Show = -1 Then ' if OK is pressed
+            sFolder = .SelectedItems(1)
+        End If
+    End With
+   
+    If sFolder <> "" Then ' if a folder was chosen..
+
+        Set oFSO = CreateObject("Scripting.FileSystemObject")
+        Set oFolder = oFSO.GetFolder(sFolder)
+        
+        'files iteration
+        For Each oFile In oFolder.Files
+        
+            sFile = oFile.Path
+            
+            'Abort if the current file isn't an allowed file type
+            If Not Right$(sFile, 4) = sAllowedExt Then
+                MsgBox sFile & " file type is not allowed, sorry. " & i & " icons inserted. Exiting..."
+                Exit Sub
+            End If
+
+            ' add a new grid slide at first run and every further time the previous grid is full
+            If (ii Mod (maxPicturesPerSlide) = 0) Then
+                i = 0
+                iRow = 0
+                s = s + 1
+                Set oSl = ActivePresentation.Slides.AddSlide(s, pptLayout)
+            End If
+        
+            ' cols iteration
+            iCol = i Mod iCols
+                
+            ' rows iteration
+            If (iCol = 0) Then
+                iRow = iRow + 1
+            End If
+                         
+            ' select slide
+            Set oSl = ActivePresentation.Slides(s)
+            
+            ' add a border for the grid
+            If bAddBorder Then
+            
+                x = xspacing * (iCol + 1) + width * iCol
+                y = yspacing * iRow + height * (iRow - 1)
+            
+                Set oBorder = oSl.Shapes.AddShape( _
+                    Type:=msoShapeRectangle, _
+                    Left:=x, _
+                    Top:=y, _
+                    width:=width, _
+                    height:=height _
+                )
+                
+                With oBorder
+                .Name = "Border for " & Replace(oFile.Name, ".svg", "")
+                    With .Fill
+                        .ForeColor.RGB = RGB(217, 217, 217)
+                        .Visible = False
+                    End With
+                    With .Line
+                        .ForeColor.RGB = RGB(217, 217, 217)
+                        .Weight = 1
+                        .Visible = True
+                    End With
+                End With
+                
+            End If
+            
+            ' add label under the icon
+            If bAddLabel Then
+            
+                x = xspacing * (iCol + 1) + width * iCol
+                y = yspacing * iRow + height * iRow
+            
+                Set oLabel = oSl.Shapes.AddShape( _
+                    Type:=msoShapeRectangle, _
+                    Left:=x, _
+                    Top:=y, _
+                    width:=width, _
+                    height:=height _
+                )
+                
+                With oLabel
+                    .Name = "Label for " & Replace(oFile.Name, ".svg", "")
+                    With .Fill
+                        .ForeColor.RGB = RGB(242, 242, 242)
+                        .Visible = True
+                    End With
+                    
+                    With .Line
+                        .ForeColor.RGB = RGB(217, 217, 217)
+                        .Weight = 0.25
+                        .Visible = True
+                    End With
+                    
+                    With .TextFrame
+
+                        .MarginTop = 1
+                        .MarginBottom = 1
+                        .MarginLeft = 1
+                        .MarginRight = 1
+                        .VerticalAnchor = msoAnchorTop
+                        
+                        With .TextRange
+                            .Text = UCase(Replace(oFile.Name, ".svg", ""))
+                            With .Font
+                                .Name = "Arial Narrow"
+                                .Size = 7
+                                .Color.RGB = RGB(24, 24, 24)
+                            End With
+                        End With
+                        
+                        .AutoSize = ppAutoSizeShapeToFitText
+                        
+                    End With
+                    
+                End With
+            
+            End If
+            
+            
+            ' Insert the picture at an arbitrary size
+            ' PowerPoint requires you to supply *some* height and width for the picture
+            Set oPicture = oSl.Shapes.AddPicture(FileName:=oFile.Path, _
+               LinkToFile:=msoFalse, _
+               SaveWithDocument:=msoTrue, _
+               Left:=0, Top:=0, _
+               width:=100, height:=100 _
+            )
+
+
+            ' Resize the newly added picture the picture scaling it proportionally
+            With oPicture
+                .Name = Replace(oFile.Name, ".svg", "")             ' picture name (for selection panel)
+                .AlternativeText = "Icon " & oPicture.Name          ' and alt text (for accessibility)
+                .ScaleHeight iPicScale, msoTrue
+                .ScaleWidth iPicScale, msoTrue
+            End With
+
+            With oPicture
+                .Left = xspacing * (iCol + 1) + (width * iCol) + (width - oPicture.width) / 2
+                .Top = yspacing * iRow + height * (iRow - 1) + (height - oPicture.height) / 2
+            End With
+                
+            ' clean up
+            Set oPicture = Nothing
+            Set oBorder = Nothing
+            Set oLabel = Nothing
+            Set oSl = Nothing
+    
+            i = i + 1       'icon count for current slide
+            ii = ii + 1     'total icon count
+    
+        Next oFile  ' iteration for next file...
+        
+    End If
+    
+    'WRAP UP
+    
+    If ii > 0 Then
+        MsgBox (ii & " icons weere inserted in " & s & " slides") 'final confirmation message if everything went OK
+    Else
+        MsgBox ("No icons added: check source folder") 'Something went wrong, couldn't add any icon :(
+    End If
+
+    Exit Sub
+    
+End Sub
+
+
+'get layout index by name
+Function getLayoutIndexByName(xLayoutName As String) As Integer
+
+    ActivePresentation.Designs(1).SlideMaster.CustomLayouts.Item (1)
+    With ActivePresentation.Designs(1).SlideMaster.CustomLayouts
+        For j = 1 To .Count
+            If .Item(j).Name = xLayoutName Then
+            getLayoutIndexByName = j
+            Exit Function
+            End If
+        Next
+    End With
+
+End Function
